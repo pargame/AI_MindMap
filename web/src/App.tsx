@@ -16,6 +16,7 @@ type Edge = {
 export default function App() {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [showKeyModal, setShowKeyModal] = useState(true)
+  const [provider, setProvider] = useState<'openai' | 'gemini'>('openai')
   const [topic, setTopic] = useState('')
   const [template, setTemplate] = useState('Write a short document about {{topic}} with 3 bullet points.')
   const [model, setModel] = useState('gpt-4o-mini')
@@ -33,6 +34,8 @@ export default function App() {
       setApiKey(k)
       setShowKeyModal(false)
     }
+  const p = sessionStorage.getItem('ai_api_provider') as 'openai' | 'gemini' | null
+  if (p === 'gemini' || p === 'openai') setProvider(p)
     const saved = localStorage.getItem('ai_mindmap')
     if (saved) {
       try {
@@ -48,6 +51,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('ai_mindmap', JSON.stringify({ nodes, edges }))
   }, [nodes, edges])
+
+  useEffect(() => {
+    // Adjust default model when provider changes
+    if (provider === 'openai') {
+      if (!model || model.startsWith('gemini')) setModel('gpt-4o-mini')
+    } else {
+      if (!model || model.startsWith('gpt') || model.startsWith('o')) setModel('gemini-1.5-flash')
+    }
+    sessionStorage.setItem('ai_api_provider', provider)
+  }, [provider])
 
   function saveApiKey() {
   const k = (apiKey || '').trim()
@@ -78,23 +91,37 @@ export default function App() {
 
     try {
       setLoading(true)
-      console.log('AI 요청 프롬프트:', prompt)
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      }
-      if (orgId) headers['OpenAI-Organization'] = orgId.trim()
-      if (projectId) headers['OpenAI-Project'] = projectId.trim()
+      console.log('AI 요청 프롬프트:', prompt, 'provider=', provider)
 
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: maxTokens,
-        }),
-      })
+      let res: Response
+      if (provider === 'openai') {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        }
+        if (orgId) headers['OpenAI-Organization'] = orgId.trim()
+        if (projectId) headers['OpenAI-Project'] = projectId.trim()
+        res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: maxTokens,
+          }),
+        })
+      } else {
+        // Gemini: key is passed via query param, body follows generateContent schema
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: Math.max(32, Math.min(2048, maxTokens)) },
+          }),
+        })
+      }
 
       if (!res.ok) {
         let message = ''
@@ -114,7 +141,17 @@ export default function App() {
       }
       const data = await res.json()
       console.log('AI 응답:', data)
-      const text = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || ''
+      let text = ''
+      if (provider === 'openai') {
+        text = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || ''
+      } else {
+        const parts = data?.candidates?.[0]?.content?.parts
+        if (Array.isArray(parts)) {
+          text = parts.map((p: any) => p?.text || '').filter(Boolean).join('\n')
+        } else {
+          text = data?.candidates?.[0]?.output_text || ''
+        }
+      }
       // simple split by lines for demo
       const lines = text.split('\n').filter(Boolean)
       const root = addNode(topic, lines[0] || topic)
@@ -168,7 +205,14 @@ export default function App() {
         <div className="modal">
           <div className="modal-content">
             <h3>API 키 입력</h3>
-            <input value={apiKey ?? ''} onChange={(e) => setApiKey(e.target.value)} placeholder="OpenAI API Key" />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <label>Provider:</label>
+              <select value={provider} onChange={(e) => setProvider(e.target.value as any)}>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+              </select>
+            </div>
+            <input value={apiKey ?? ''} onChange={(e) => setApiKey(e.target.value)} placeholder={provider === 'openai' ? 'OpenAI API Key (sk-...)' : 'Gemini API Key'} />
             <div className="modal-actions">
               <button onClick={saveApiKey}>저장(세션)</button>
               <button onClick={() => setShowKeyModal(false)}>데모로 계속</button>
@@ -200,15 +244,22 @@ export default function App() {
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="주제를 입력하세요 (예: AActor)" />
           <textarea value={template} onChange={(e) => setTemplate(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label>Provider:</label>
+            <select value={provider} onChange={(e) => setProvider(e.target.value as any)}>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
+            </select>
             <label>모델:</label>
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" style={{ width: 200 }} />
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'} style={{ width: 220 }} />
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label>Organization:</label>
-            <input value={orgId} onChange={(e) => setOrgId(e.target.value)} placeholder="org_... (선택)" style={{ width: 220 }} />
-            <label>Project:</label>
-            <input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="proj_... (선택)" style={{ width: 220 }} />
-          </div>
+          {provider === 'openai' && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label>Organization:</label>
+              <input value={orgId} onChange={(e) => setOrgId(e.target.value)} placeholder="org_... (선택)" style={{ width: 220 }} />
+              <label>Project:</label>
+              <input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="proj_... (선택)" style={{ width: 220 }} />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <label>max_tokens:</label>
             <input type="number" min={32} max={1000} step={10} value={maxTokens} onChange={(e) => setMaxTokens(Number(e.target.value))} style={{ width: 120 }} />
