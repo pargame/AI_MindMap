@@ -18,6 +18,7 @@ export default function App() {
   const [showKeyModal, setShowKeyModal] = useState(true)
   const [topic, setTopic] = useState('')
   const [template, setTemplate] = useState('Write a short document about {{topic}} with 3 bullet points.')
+  const [model, setModel] = useState('gpt-4o-mini')
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
@@ -82,16 +83,23 @@ export default function App() {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 400,
         }),
       })
 
       if (!res.ok) {
-        const errText = await res.text()
-        console.error('AI 응답 에러:', res.status, errText)
-        throw new Error(`API error: ${res.status}`)
+        let message = ''
+        try {
+          const errJson = await res.json()
+          message = errJson?.error?.message || JSON.stringify(errJson)
+        } catch (_) {
+          message = await res.text()
+        }
+        console.error('AI 응답 에러:', res.status, message)
+        alert(`AI 호출 실패 (${res.status}). 상세: ${message}`)
+        return
       }
       const data = await res.json()
       console.log('AI 응답:', data)
@@ -103,9 +111,11 @@ export default function App() {
       setEdges((s) => [...s, ...childNodes.map((c) => ({ from: root.id, to: c.id }))])
     } catch (e) {
       console.error(e)
-      alert('AI 호출 실패')
-    }
+      const msg = e instanceof Error ? e.message : '알 수 없는 오류'
+      alert(`AI 호출 실패: ${msg}`)
+    } finally {
       setLoading(false)
+    }
   }
 
   function exportJson() {
@@ -178,6 +188,10 @@ export default function App() {
         <section className="controls">
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="주제를 입력하세요 (예: AActor)" />
           <textarea value={template} onChange={(e) => setTemplate(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label>모델:</label>
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" style={{ width: 200 }} />
+          </div>
           <div className="actions">
             <button onClick={generate} disabled={loading}>{loading ? '생성중...' : '생성'}</button>
             <button onClick={exportJson}>내보내기</button>
