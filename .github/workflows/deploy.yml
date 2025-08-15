@@ -33,6 +33,12 @@ jobs:
           cd web
           npm run build
 
+      - name: Show build output
+        run: |
+          echo "Listing web/dist"
+          ls -la web/dist || true
+          du -sh web/dist || true
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v1
         with:
