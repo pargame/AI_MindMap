@@ -1,0 +1,26 @@
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 0; padding: 0; }
+.app { padding: 12px; }
+header { margin-bottom: 12px }
+.controls { width: 300px; float: left; }
+.controls input, .controls textarea { width: 100%; margin-bottom: 8px; padding: 8px }
+.canvas { margin-left: 320px; position: relative }
+.canvas svg { border: 1px solid #ddd; background: #fafafa }
+.side { position: absolute; right: 8px; top: 8px; width: 220px; background: #fff; border: 1px solid #ddd; padding: 8px }
+.modal { position: fixed; left:0; top:0; right:0; bottom:0; background: rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center }
+.modal-content { background:#fff; padding:16px; width:380px; border-radius:8px }
+.modal-actions { display:flex; gap:8px; margin-top:8px }
+.warning { color:#a33; font-size:12px }
+
+.banner { background:#fffae6; border:1px solid #ffd47a; padding:8px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
+.banner button { padding:6px 10px }
+
+.canvas svg { width: 800px; height: 600px }
+
+/* Ensure UI controls are clickable and sit above canvas */
+header, .controls, .side { position: relative; z-index: 20 }
+.canvas { z-index: 10 }
+.modal { z-index: 10000 }
+
+/* Make placeholder text non-blocking outside SVG group if needed */
+.canvas svg g[role="placeholder"] { pointer-events: none }
