@@ -52,3 +52,6 @@ http://localhost:5174/
 ## 버전/커밋 표시
 - 배포 시 `meta.json`이 생성되어 페이지 하단 푸터에 버전과 커밋이 표시됩니다.
 
+## Contributing
+- See `handbook/CONTRIBUTING.md` for quick workflow and guidelines.
+
