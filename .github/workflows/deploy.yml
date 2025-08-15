@@ -5,6 +5,12 @@ on:
     branches:
       - main
 
+# Give the workflow explicit permissions needed to publish Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
