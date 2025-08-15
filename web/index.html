@@ -10,3 +10,21 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
+    <footer style="margin:24px 0; text-align:center; color:#666; font-size:12px" id="app-footer"></footer>
+    <script>
+      (async function(){
+        try {
+          const res = await fetch('./meta.json', { cache: 'no-store' });
+          if (!res.ok) return;
+          const { version, commit } = await res.json();
+          const el = document.getElementById('app-footer');
+          if (el) {
+            const repo = 'pargame/AI_MindMap';
+            const sha = String(commit||'').trim();
+            const short = sha.slice(0,7);
+            el.innerHTML = `v${version || '0.0.0'} · <a href="https://github.com/${repo}/commit/${sha}" target="_blank" rel="noreferrer">${short}</a>`;
+          }
+        } catch {}
+      })();
+    </script>

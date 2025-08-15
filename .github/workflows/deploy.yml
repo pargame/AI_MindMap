@@ -38,10 +38,13 @@ jobs:
         run: npm run build
         working-directory: web
 
-      - name: Show build output
+      - name: Write meta and .nojekyll
         run: |
-          echo "Listing web/dist"
-          ls -la web/dist || true
+          COMMIT=$(git rev-parse --short HEAD)
+          VERSION=$(node -p "require('./web/package.json').version")
+          echo "{\"version\":\"$VERSION\",\"commit\":\"$COMMIT\"}" > web/dist/meta.json
+          touch web/dist/.nojekyll
+          echo "Listing web/dist" && ls -la web/dist || true
           du -sh web/dist || true
 
       - name: Setup Pages
