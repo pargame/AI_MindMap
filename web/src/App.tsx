@@ -19,6 +19,9 @@ export default function App() {
   const [topic, setTopic] = useState('')
   const [template, setTemplate] = useState('Write a short document about {{topic}} with 3 bullet points.')
   const [model, setModel] = useState('gpt-4o-mini')
+  const [orgId, setOrgId] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [maxTokens, setMaxTokens] = useState<number>(200)
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
@@ -76,16 +79,20 @@ export default function App() {
     try {
       setLoading(true)
       console.log('AI 요청 프롬프트:', prompt)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      }
+      if (orgId) headers['OpenAI-Organization'] = orgId.trim()
+      if (projectId) headers['OpenAI-Project'] = projectId.trim()
+
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify({
           model,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 400,
+          max_tokens: maxTokens,
         }),
       })
 
@@ -98,7 +105,11 @@ export default function App() {
           message = await res.text()
         }
         console.error('AI 응답 에러:', res.status, message)
-        alert(`AI 호출 실패 (${res.status}). 상세: ${message}`)
+        if (res.status === 429 && /quota/i.test(message)) {
+          alert(`AI 호출 실패 (429: Quota exceeded).\n- OpenAI Billing에서 결제 수단 및 크레딧을 설정하세요.\n- 사용 중인 조직/프로젝트에 크레딧이 있는지 확인하세요.\n- 필요하면 아래의 Organization/Project 값을 지정해보세요.\n상세: ${message}`)
+        } else {
+          alert(`AI 호출 실패 (${res.status}). 상세: ${message}`)
+        }
         return
       }
       const data = await res.json()
@@ -191,6 +202,16 @@ export default function App() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <label>모델:</label>
             <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o-mini" style={{ width: 200 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label>Organization:</label>
+            <input value={orgId} onChange={(e) => setOrgId(e.target.value)} placeholder="org_... (선택)" style={{ width: 220 }} />
+            <label>Project:</label>
+            <input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="proj_... (선택)" style={{ width: 220 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label>max_tokens:</label>
+            <input type="number" min={32} max={1000} step={10} value={maxTokens} onChange={(e) => setMaxTokens(Number(e.target.value))} style={{ width: 120 }} />
           </div>
           <div className="actions">
             <button onClick={generate} disabled={loading}>{loading ? '생성중...' : '생성'}</button>
